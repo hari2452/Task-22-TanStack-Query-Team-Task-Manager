@@ -1,0 +1,8 @@
+import {createContext,useContext,useEffect,useState} from 'react';import type {ReactNode} from 'react';import {useQuery,useQueryClient} from '@tanstack/react-query';import {api} from '../api/axios';import type {User} from '../types';
+type Auth={user:User|null;loading:boolean;login:(email:string,password:string)=>Promise<void>;register:(name:string,email:string,password:string)=>Promise<void>;logout:()=>void};const Context=createContext<Auth|null>(null);
+export function AuthProvider({children}:{children:ReactNode}){const [token,setToken]=useState(localStorage.getItem('token'));const qc=useQueryClient();useEffect(()=>{const clear=()=>{setToken(null);qc.clear()};window.addEventListener('auth-expired',clear);return()=>window.removeEventListener('auth-expired',clear)},[qc]);const me=useQuery({queryKey:['me',token],queryFn:()=>api.get<User>('/api/me').then(r=>r.data),enabled:!!token,retry:false});
+const save=(t:string)=>{localStorage.setItem('token',t);qc.clear();setToken(t)};
+const login=async(email:string,password:string)=>{const r=await api.post<{token:string}>('/api/login',{email,password});save(r.data.token)};
+const register=async(name:string,email:string,password:string)=>{const r=await api.post<{token:string}>('/api/register',{name,email,password});save(r.data.token)};
+const logout=()=>{localStorage.removeItem('token');setToken(null);qc.clear()};return <Context.Provider value={{user:me.data||null,loading:!!token&&me.isPending,login,register,logout}}>{children}</Context.Provider>}
+export function useAuth(){const value=useContext(Context);if(!value)throw new Error('Missing AuthProvider');return value}
